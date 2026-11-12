@@ -137,8 +137,32 @@ struct VmParam {
   uint64_t code[4096 / sizeof(uint64_t)];
 };
 
-int InitVM(uint64_t local_mem_size);
-int LaunchVM(const VmParam &param, uint32_t block_dim, void *stream);
+constexpr uint32_t kDefaultBlockPerSm = 2;
+constexpr uint64_t kGpuXbufReserved = 32;
+
+class SmModel {
+ public:
+  SmModel(size_t n_mem, size_t n_simd, uint64_t item_size) {
+    n_mem_ = static_cast<double>(n_mem * item_size);
+    n_simd_ = static_cast<double>(n_simd);
+  }
+  uint32_t SelectBlocks(uint64_t dom_space, uint64_t item_size, int64_t live_peak, uint64_t reserve_ws);
+  uint32_t SelectThreads(int64_t tile_num, int64_t tile_size, uint32_t blocks_per_sm, uint32_t shared_bytes);
+
+ protected:
+  double GetCost(int64_t tile_size, int64_t tile_num, uint32_t threads, uint32_t blocks_per_sm);
+  double n_mem_;
+  double n_simd_;
+};
+
+struct SysConfig {
+  uint64_t core_num;
+  uint64_t local_mem_size;
+};
+
+int InitVM(int dev_id, SysConfig &conf);
+uint64_t GetLocalMemBudget(uint32_t blocks_per_sm);
+int LaunchVM(const VmParam &param, uint32_t block_dim, uint32_t threads, uint32_t shared_bytes, void *stream);
 }  // namespace dvm::gpu
 
 #endif  // _DVM_VM_GPU_H_

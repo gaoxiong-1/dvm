@@ -101,6 +101,7 @@ class Code : public CodeWrap {
     bind_wss_ = nullptr;
     bind_ops_ = nullptr;
     wrap_ = nullptr;
+    ArchClear();
   }
   void Alloc(size_t size);
   void MoveCode(Code &other);
@@ -256,6 +257,33 @@ class Code : public CodeWrap {
     op.bind_list_ = pos;
     pos = &op;
   }
+
+ public:
+#ifdef DVM_ARCH_GPU
+  void ArchClear() {
+    threads_ = 0;
+    shared_bytes_ = 0;
+  }
+  void ArchMove(Code &other) {
+    threads_ = other.threads_;
+    shared_bytes_ = other.shared_bytes_;
+  }
+  void ArchCombine(const Code &other) { GpuUpdate(other.threads_, other.shared_bytes_); }
+  void GpuUpdate(uint32_t threads, uint32_t shared_bytes) {
+    if (threads > threads_) {
+      threads_ = threads;
+    }
+    if (shared_bytes > shared_bytes_) {
+      shared_bytes_ = shared_bytes;
+    }
+  }
+  uint32_t threads_{0};
+  uint32_t shared_bytes_{0};
+#else
+  void ArchClear() {}
+  void ArchMove(Code &) {}
+  void ArchCombine(const Code &) {}
+#endif
 };
 
 class CodeLaunchGuard : public CodeWrap {

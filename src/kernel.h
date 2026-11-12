@@ -24,6 +24,9 @@
 #include "ops.h"
 #include "ops_c.h"
 #include "pass.h"
+#ifdef DVM_ARCH_GPU
+#include "vm_gpu.h"
+#endif
 
 namespace dvm {
 class MsprofHelper;
@@ -312,6 +315,31 @@ class VectorKernel : public VKernel {
   int max_type_;
   int min_type_;
   friend class CodeGenHelper;
+
+ public:
+#ifdef DVM_ARCH_GPU
+  void ArchPrepareTiling() { blocks_per_sm_ = gpu::kDefaultBlockPerSm; }
+
+  struct SmModel : public gpu::SmModel {
+    SmModel(const VectorKernel &k)
+        : gpu::SmModel(k.static_ops_.size(), k.objects_.size() - k.static_ops_.size(), ITEM_SIZE[k.max_type_]) {}
+  };
+  void GpuSetSmBlocks(uint32_t blocks_per_sm) {
+    blocks_per_sm_ = blocks_per_sm;
+    local_mem_size_ = gpu::GetLocalMemBudget(blocks_per_sm) - tile_info_.ext_ws;
+  }
+  uint64_t GpuConvertSmCore(uint64_t core_num, uint32_t sm_block_old, uint32_t sm_block_new) const {
+    return core_num / sm_block_old * sm_block_new;
+  }
+  uint64_t GpuSelectSmBlocks(uint64_t core_num, int64_t live_peak) {
+    auto block_per_sm = SmModel(*this).SelectBlocks(tile_size_, ITEM_SIZE[max_type_], live_peak, tile_info_.ext_ws);
+    GpuSetSmBlocks(block_per_sm);
+    return GpuConvertSmCore(core_num, gpu::kDefaultBlockPerSm, block_per_sm);
+  }
+  uint32_t blocks_per_sm_{0};
+#else
+  void ArchPrepareTiling() {}
+#endif
 };
 
 class SchGenHelper;
