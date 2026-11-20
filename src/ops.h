@@ -555,10 +555,17 @@ class NDAccess : public NDObject {
  public:
   NDAccess(void *gm, NDObject *lhs, DataType type_id, ObjectType obj_id)
       : NDObject(lhs, nullptr, type_id, obj_id), addr_({gm}) {}
+
+  virtual NDAccess *CloneBind();
+  void SetBind(NDAccess *input) {
+    SetFlag(OBJ_FLAG_LOAD_BIND);
+    addr_.gm = input->CheckFlag(OBJ_FLAG_LOAD_BIND) ? input->LoadBind() : input;
+  }
   NDAccess *LoadBind() const {
     ASSERT(flags_ & OBJ_FLAG_LOAD_BIND);
     return static_cast<NDAccess *>(addr_.gm);
   }
+
   bool IsSupportView() const;
   void ViewUpdate(uint64_t offset) { offset_bytes_ = offset; }
 
@@ -592,6 +599,7 @@ class NDLoadDummy : public NDAccess {
   void Tile(const TileParam &tp) override {}
   uint64_t Emit(VectorKernel &k) override;
   NDObject *Clone(CloneHelper &h) override;
+  NDAccess *CloneBind() override;
   void Dump(bool verbose, std::ostringstream &oss) override;
 
  private:
@@ -610,6 +618,7 @@ class NDLoad : public NDAccess {
   void Shard(const ShardParam &sp) override;
   uint64_t Emit(VectorKernel &k) override;
   NDObject *Clone(CloneHelper &h) override;
+  NDAccess *CloneBind() override;
   void Dump(bool verbose, std::ostringstream &oss) override;
 
   NDSpaceData ndd_;
@@ -653,6 +662,7 @@ class NDViewLoad : public NDLoad {
   }
   void Normalize(std::vector<NDObject *> &run_ops) override;
   NDObject *Clone(CloneHelper &h) override;
+  NDAccess *CloneBind() override;
   void Dump(bool verbose, std::ostringstream &oss) override;
   DimArray &Stride() { return src_stride_; }
 
